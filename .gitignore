@@ -1,0 +1,21 @@
+# === RAHASIA (wajib) ===
+kredensial_firebase.json
+.env
+*.key
+
+# === Python ===
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# === File sementara Excel (yang awalnya ~$...) ===
+~$*
+
+# === Sistem & editor ===
+.vscode/
+Thumbs.db
+.DS_Store
+
+# === Export database Firebase (hapus baris ini kalau datanya aman dipublikasikan) ===
+rekomendasi-pupuk-default-rtdb-export.json

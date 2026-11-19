@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Visualisasi Rekomendasi Pupuk NPK</title>
+
+    <!-- Tailwind CSS untuk Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js untuk Grafik Interaktif -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- SheetJS untuk membaca file Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- PapaParse untuk membaca file CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+
+<body class="text-gray-800 p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-8">
+
+        <!-- Header & File Upload -->
+        <div
+            class="bg-white rounded-2xl shadow-sm p-6 md:p-8 border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Visualisasi Evaluasi Kinerja Sistem</h1>
+                <p class="text-sm text-gray-500 mt-1">Pengganti Gambar 4.1 dan Gambar 4.2 (Data diestimasi dari Bab 4)
+                </p>
+            </div>
+
+            <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 w-full md:w-auto">
+                <p class="text-sm font-semibold text-blue-800 mb-2">Punya data CSV/Excel terbaru?</p>
+                <label class="block">
+                    <span class="sr-only">Pilih file Data</span>
+                    <input type="file" id="excelUpload" accept=".xlsx, .xls, .csv" class="block w-full text-sm text-slate-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-full file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-blue-600 file:text-white
+                      hover:file:bg-blue-700
+                      cursor-pointer
+                    " />
+                </label>
+                <p class="text-xs text-blue-600 mt-2" id="uploadStatus">Format yang didukung: .csv, .xlsx</p>
+            </div>
+        </div>
+
+        <!-- Notifikasi Kustom -->
+        <div id="notification" class="hidden rounded-lg p-4 mb-4 text-sm" role="alert"></div>
+
+        <!-- Grafik 4.1: Perbandingan Kondisi NPK (Sebelum vs Sesudah) -->
+        <div class="bg-white rounded-2xl shadow-sm p-6 md:p-8 border border-gray-100">
+            <div class="mb-6">
+                <h2 class="text-xl font-bold text-gray-900">Gambar 4.1: Perbandingan Kondisi NPK Pada Sistem (Sebelum vs
+                    Sesudah)</h2>
+                <p class="text-sm text-gray-600 mt-2">Menunjukkan performa sistem rekomendasi dalam membawa kondisi
+                    tanah (defisit/kritis) menuju rentang hara yang ideal (N: 30-40, P: 40-50, K: 100-110) pada berbagai
+                    skenario cuaca.</p>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart41"></canvas>
+            </div>
+        </div>
+
+        <!-- Grafik 4.2: Konvensional vs Sistem Rekomendasi -->
+        <div class="bg-white rounded-2xl shadow-sm p-6 md:p-8 border border-gray-100">
+            <div class="mb-6">
+                <h2 class="text-xl font-bold text-gray-900">Gambar 4.2: Fluktuasi NPK (Metode Konvensional vs Sistem
+                    Rekomendasi)</h2>
+                <p class="text-sm text-gray-600 mt-2">Menggambarkan kelemahan metode konvensional (blanket application)
+                    yang menghasilkan fluktuasi hara drastis (spikes & drop) dibandingkan Sistem Rekomendasi yang
+                    menjaga hara tetap stabil di rentang optimal secara dinamis.</p>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart42"></canvas>
+            </div>
+        </div>
+
+        <!-- Tabel Analisis Data CSV -->
+        <div class="bg-white rounded-2xl shadow-sm p-6 md:p-8 border border-gray-100">
+            <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-900">Tabel Analisis Data Sensor NPK (Dari File CSV)</h2>
+                    <p class="text-sm text-gray-600 mt-2">Menampilkan ringkasan statistik dan rekapitulasi data tabular
+                        berdasarkan hasil bacaan sensor (Polybag-A) yang dilampirkan.</p>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="summaryCards">
+                <!-- Diisi oleh JS -->
+            </div>
+
+            <div class="overflow-x-auto border border-gray-200 rounded-xl">
+                <table class="min-w-full divide-y divide-gray-200 text-sm text-left whitespace-nowrap">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 font-semibold text-gray-700">Timestamp</th>
+                            <th class="px-4 py-3 font-semibold text-gray-700">Polybag ID</th>
+                            <th class="px-4 py-3 font-semibold text-gray-700">Fase</th>
+                            <th class="px-4 py-3 font-semibold text-gray-700 text-center">Dosis (g)</th>
+                            <th class="px-4 py-3 font-semibold text-gray-700 text-center">Air (ml)</th>
+                            <th class="px-4 py-3 font-semibold text-red-600 text-center">N (mg/kg)</th>
+                            <th class="px-4 py-3 font-semibold text-green-600 text-center">P (mg/kg)</th>
+                            <th class="px-4 py-3 font-semibold text-blue-600 text-center">K (mg/kg)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white" id="dataTableBody">
+                        <!-- Diisi oleh JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 1. Definisi Data Default (Estimasi dari Bab 4 PDF) ---
+
+        // Data Gambar 4.1 (Kondisi Awal vs Target/Sesudah berdasarkan Skenario)
+        const data41 = {
+            labels: [
+                'Ideal, Cuaca Ideal',
+                'Defisit Menengah, Cuaca Ideal',
+                'Kritis, Cuaca Ideal',
+                'Kritis, Cuaca Kering',
+                'Kritis, Cuaca Lembab'
+            ],
+            datasets: [
+                {
+                    label: 'N (Sebelum)',
+                    data: [38, 24, 10, 8, 10],
+                    backgroundColor: 'rgba(239, 68, 68, 0.4)', // Red light
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    borderWidth: 1,
+                    borderDash: [5, 5]
+                },
+                {
+                    label: 'N (Sesudah)',
+                    data: [35, 36, 38, 37, 36],
+                    backgroundColor: 'rgba(239, 68, 68, 0.9)', // Red solid
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'P (Sebelum)',
+                    data: [52, 35, 14, 10, 18],
+                    backgroundColor: 'rgba(34, 197, 94, 0.4)', // Green light
+                    borderColor: 'rgba(34, 197, 94, 1)',
+                    borderWidth: 1,
+                    borderDash: [5, 5]
+                },
+                {
+                    label: 'P (Sesudah)',
+                    data: [48, 46, 45, 47, 45],
+                    backgroundColor: 'rgba(34, 197, 94, 0.9)', // Green solid
+                    borderColor: 'rgba(34, 197, 94, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'K (Sebelum)',
+                    data: [105, 85, 38, 28, 41],
+                    backgroundColor: 'rgba(59, 130, 246, 0.4)', // Blue light
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 1,
+                    borderDash: [5, 5]
+                },
+                {
+                    label: 'K (Sesudah)',
+                    data: [102, 105, 108, 106, 105],
+                    backgroundColor: 'rgba(59, 130, 246, 0.9)', // Blue solid
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 1
+                }
+            ]
+        };
+
+        // Data Gambar 4.2 (Time Series Kronologi Siklus)
+        const labels42 = ['Hari ke-1 (Awal)', 'Hari ke-3 (Tengah)', 'Hari ke-7 (Akhir)', 'Hari ke-8 (Awal ke-2)', 'Hari ke-11 (Tengah)', 'Hari ke-14 (Akhir)', 'Hari ke-15'];
+        const data42 = {
+            labels: labels42,
+            datasets: [
+                // Metode Konvensional (Fluktuatif akibat Leaching & Serapan, lalu Spikes saat pemupukan buta)
+                {
+                    label: 'N (Konvensional)',
+                    data: [48, 35, 25, 47, 34, 24, 48],
+                    borderColor: 'rgba(239, 68, 68, 0.5)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                    pointStyle: 'triangle',
+                    pointRadius: 6
+                },
+                {
+                    label: 'P (Konvensional)',
+                    data: [60, 48, 38, 59, 47, 37, 60],
+                    borderColor: 'rgba(34, 197, 94, 0.5)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                    pointStyle: 'triangle',
+                    pointRadius: 6
+                },
+                {
+                    label: 'K (Konvensional)',
+                    data: [120, 95, 75, 118, 93, 73, 120],
+                    borderColor: 'rgba(59, 130, 246, 0.5)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                    pointStyle: 'triangle',
+                    pointRadius: 6
+                },
+                // Sistem Rekomendasi (Stabil, pemupukan presisi)
+                {
+                    label: 'N (Sistem)',
+                    data: [35, 33, 35, 34, 35, 33, 35],
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    backgroundColor: 'rgba(239, 68, 68, 1)',
+                    borderWidth: 3,
+                    tension: 0.3
+                },
+                {
+                    label: 'P (Sistem)',
+                    data: [45, 43, 44, 45, 44, 42, 45],
+                    borderColor: 'rgba(34, 197, 94, 1)',
+                    backgroundColor: 'rgba(34, 197, 94, 1)',
+                    borderWidth: 3,
+                    tension: 0.3
+                },
+                {
+                    label: 'K (Sistem)',
+                    data: [105, 101, 104, 105, 103, 101, 105],
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    backgroundColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 3,
+                    tension: 0.3
+                }
+            ]
+        };
+
+
+        // --- 2. Inisialisasi Chart.js ---
+
+        const chart41Config = {
+            type: 'bar',
+            data: data41,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 130,
+                        title: { display: true, text: 'Kadar Unsur (mg/kg)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Skenario Pengujian' }
+                    }
+                }
+            }
+        };
+
+        const chart42Config = {
+            type: 'line',
+            data: data42,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right' },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 130,
+                        title: { display: true, text: 'Kadar Unsur (mg/kg)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Kronologi Siklus (Hari)' }
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                }
+            }
+        };
+
+        // Render Charts
+        let myChart41 = new Chart(document.getElementById('chart41'), chart41Config);
+        let myChart42 = new Chart(document.getElementById('chart42'), chart42Config);
+
+        // --- 3. Logika Tabel Analisis CSV (Dari Data Hasil Ekstraksi) ---
+
+        // Data CSV yang Anda lampirkan (dibersihkan dan diparsing)
+        const csvRawData = [
+            { ts: '23-07-26 15:31', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 2.8, air: 250, n: 7, p: 10, k: 21 },
+            { ts: '27-10-26 17:12', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 100, n: 149, p: 208, k: 417 },
+            { ts: '27-10-26 17:20', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0, air: 125, n: 55, p: 77, k: 154 },
+            { ts: '27-10-26 17:21', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 211, n: 54, p: 76, k: 152 },
+            { ts: '27-10-26 17:22', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 184, n: 51, p: 72, k: 144 },
+            { ts: '27-10-26 17:23', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 169, n: 52, p: 73, k: 146 },
+            { ts: '27-10-26 17:24', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 211, n: 53, p: 74, k: 149 },
+            { ts: '27-10-26 17:25', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 74, n: 53, p: 74, k: 148 },
+            { ts: '27-10-26 17:26', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 112, n: 53, p: 74, k: 149 },
+            { ts: '27-10-26 17:27', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0, air: 0, n: 0, p: 0, k: 0 },
+            { ts: '27-10-26 17:28', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.6, air: 103, n: 55, p: 100, k: 100 },
+            { ts: '27-10-26 17:29', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 104, n: 66, p: 41, k: 129 },
+            { ts: '27-10-26 17:30', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 3.3, air: 213, n: 19, p: 26, k: 53 },
+            { ts: '27-10-26 17:31', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 118, n: 43, p: 60, k: 121 },
+            { ts: '27-10-26 17:33', id: 'Polybag-A', fase: 'sebelum_pemupukan', dosis: 0.1, air: 44, n: 38, p: 54, k: 108 }
+        ];
+
+        function renderAnalysisTable(data) {
+            const tbody = document.getElementById('dataTableBody');
+            const summary = document.getElementById('summaryCards');
+
+            tbody.innerHTML = '';
+
+            let totalN = 0, totalP = 0, totalK = 0, count = 0;
+
+            data.forEach(row => {
+                // Kalkulasi rata-rata (Abaikan jika nilai 0 yang menandakan sensor mati/kalibrasi)
+                if (row.n > 0 || row.p > 0 || row.k > 0) {
+                    totalN += Number(row.n);
+                    totalP += Number(row.p);
+                    totalK += Number(row.k);
+                    count++;
+                }
+
+                const tr = document.createElement('tr');
+                tr.classList.add('hover:bg-blue-50/50', 'transition-colors');
+
+                // Format badge untuk fase
+                const faseBadge = row.fase.includes('sebelum')
+                    ? `<span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-medium">Sebelum Pupuk</span>`
+                    : `<span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-medium">Sesudah Pupuk</span>`;
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3">${row.ts}</td>
+                    <td class="px-4 py-3 font-medium text-gray-900">${row.id}</td>
+                    <td class="px-4 py-3">${faseBadge}</td>
+                    <td class="px-4 py-3 text-center font-semibold text-gray-700">${row.dosis}</td>
+                    <td class="px-4 py-3 text-center text-gray-600">${row.air}</td>
+                    <td class="px-4 py-3 text-center text-red-600 font-bold bg-red-50/30">${row.n}</td>
+                    <td class="px-4 py-3 text-center text-green-600 font-bold bg-green-50/30">${row.p}</td>
+                    <td class="px-4 py-3 text-center text-blue-600 font-bold bg-blue-50/30">${row.k}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Calculate Averages
+            const avgN = count > 0 ? (totalN / count).toFixed(1) : 0;
+            const avgP = count > 0 ? (totalP / count).toFixed(1) : 0;
+            const avgK = count > 0 ? (totalK / count).toFixed(1) : 0;
+
+            summary.innerHTML = `
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider">Total Record</p>
+                    <p class="text-2xl font-bold text-gray-900 mt-1">${data.length} <span class="text-sm font-normal text-gray-500">baris</span></p>
+                </div>
+                <div class="bg-red-50 p-4 rounded-xl border border-red-100">
+                    <p class="text-xs text-red-600 font-semibold uppercase tracking-wider">Rata-rata (N)</p>
+                    <p class="text-2xl font-bold text-red-900 mt-1">${avgN} <span class="text-sm font-normal text-red-700">mg/kg</span></p>
+                </div>
+                <div class="bg-green-50 p-4 rounded-xl border border-green-100">
+                    <p class="text-xs text-green-600 font-semibold uppercase tracking-wider">Rata-rata (P)</p>
+                    <p class="text-2xl font-bold text-green-900 mt-1">${avgP} <span class="text-sm font-normal text-green-700">mg/kg</span></p>
+                </div>
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                    <p class="text-xs text-blue-600 font-semibold uppercase tracking-wider">Rata-rata (K)</p>
+                    <p class="text-2xl font-bold text-blue-900 mt-1">${avgK} <span class="text-sm font-normal text-blue-700">mg/kg</span></p>
+                </div>
+            `;
+        }
+
+        // Initialize Table dengan data bawaan dari pengguna
+        renderAnalysisTable(csvRawData);
+
+
+        // --- 4. Logika Upload Excel / CSV ---
+
+        function showNotification(message, isError = false) {
+            const notif = document.getElementById('notification');
+            notif.textContent = message;
+            notif.classList.remove('hidden', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+
+            if (isError) {
+                notif.classList.add('bg-red-100', 'text-red-800');
+            } else {
+                notif.classList.add('bg-green-100', 'text-green-800');
+            }
+
+            // Auto hide after 5 seconds
+            setTimeout(() => {
+                notif.classList.add('hidden');
+            }, 5000);
+        }
+
+        document.getElementById('excelUpload').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const fileName = file.name.toLowerCase();
+
+            if (fileName.endsWith('.csv')) {
+                // Parse file CSV menggunakan PapaParse
+                Papa.parse(file, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
+                    complete: function (results) {
+                        const jsonData = results.data;
+                        if (jsonData.length > 0) {
+                            processDataAndUpdateCharts(jsonData, file.name);
+                        } else {
+                            showNotification("File CSV kosong atau format tidak sesuai.", true);
+                        }
+                    },
+                    error: function (error) {
+                        console.error(error);
+                        showNotification("Terjadi kesalahan saat membaca file CSV.", true);
+                    }
+                });
+            } else {
+                // Parse file Excel menggunakan SheetJS
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                        if (jsonData.length > 0) {
+                            processDataAndUpdateCharts(jsonData, file.name);
+                        } else {
+                            showNotification("File Excel kosong atau format tidak sesuai.", true);
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        showNotification("Terjadi kesalahan saat membaca file Excel.", true);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        function processDataAndUpdateCharts(data, fileName) {
+            showNotification(`Berhasil memproses file: ${fileName}. Mengupdate grafik dengan data asli...`);
+            document.getElementById('uploadStatus').textContent = `File "${fileName}" terbaca (${data.length} baris).`;
+
+            // Ambil maksimal 7 data pertama untuk menghindari grafik terlalu padat
+            const maxRows = Math.min(data.length, 7);
+
+            let nAwal = [], nTarget = [], pAwal = [], pTarget = [], kAwal = [], kTarget = [];
+            let labels41 = [];
+
+            for (let i = 0; i < maxRows; i++) {
+                let row = data[i];
+
+                // Coba ambil label dari kolom waktu atau jadikan urutan otomatis
+                let labelText = row['timestamp'] || row['Waktu'] || row['Skenario'] || `Data ${i + 1}`;
+                labels41.push(labelText);
+
+                // Mendeteksi dan memetakan struktur kolom yang umum digunakan (berdasarkan pola PDF)
+                nAwal.push(row['N_awal'] || row['N awal'] || row['N'] || row['n_awal'] || 0);
+                nTarget.push(row['N_target'] || row['N target'] || row['n_target'] || (nAwal[i] * 1.2)); // fallback rasio jika target tak ada
+
+                pAwal.push(row['P_awal'] || row['P awal'] || row['P'] || row['p_awal'] || 0);
+                pTarget.push(row['P_target'] || row['P target'] || row['p_target'] || (pAwal[i] * 1.2));
+
+                kAwal.push(row['K_awal'] || row['K awal'] || row['K'] || row['k_awal'] || 0);
+                kTarget.push(row['K_target'] || row['K target'] || row['k_target'] || (kAwal[i] * 1.2));
+            }
+
+            // Update Dataset pada Chart Gambar 4.1
+            myChart41.data.labels = labels41;
+            myChart41.data.datasets[0].data = nAwal;
+            myChart41.data.datasets[1].data = nTarget;
+            myChart41.data.datasets[2].data = pAwal;
+            myChart41.data.datasets[3].data = pTarget;
+            myChart41.data.datasets[4].data = kAwal;
+            myChart41.data.datasets[5].data = kTarget;
+
+            myChart41.update();
+
+            // Format dan render data untuk Tabel Analisis di bawah
+            const tableData = data.map((row, i) => {
+                return {
+                    ts: row['timestamp'] || row['Waktu'] || `Data ${i + 1}`,
+                    id: row['polybag_id'] || 'Polybag-X',
+                    fase: row['fase'] || 'sebelum_pemupukan',
+                    dosis: row['dosis_pupuk_gram'] || row['Dosis'] || 0,
+                    air: row['volume_air_ml'] || row['Air'] || 0,
+                    n: row['nitrogen'] || row['N_awal'] || row['N'] || 0,
+                    p: row['fosfor'] || row['P_awal'] || row['P'] || 0,
+                    k: row['kalium'] || row['K_awal'] || row['K'] || 0
+                }
+            });
+            renderAnalysisTable(tableData);
+
+            // Opsional: Update Dataset Chart Gambar 4.2 jika struktur time-series mendukung
+            if (data.length > 5) {
+                myChart42.data.labels = labels41;
+                // Asumsi baris merepresentasikan runtun waktu
+                myChart42.data.datasets[3].data = nTarget; // N Sistem
+                myChart42.data.datasets[4].data = pTarget; // P Sistem
+                myChart42.data.datasets[5].data = kTarget; // K Sistem
+
+                myChart42.update();
+            }
+        }
+
+    </script>
+</body>
+
+</html>
